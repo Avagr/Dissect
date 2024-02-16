@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="79d70c7d-cf57-4b7b-b61b-bc009c135957" name="wexac">
+        <fileTransfer rootFolder="/home/projects/shimon/agroskin" accessType="SFTP" host="wexac" port="22" sshConfigId="1d7c86d1-6557-4aef-b858-45a85173c681" sshConfig="agroskin@wexac:22 agent" authAgent="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

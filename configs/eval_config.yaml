@@ -1,0 +1,28 @@
+defaults:
+    - _self_
+    - task: whatsup
+    - model: llava
+
+prompt: "${model}_${task}_${task.eval_method}"
+
+name: "${model.name} ${v}"
+wandb_project: vivisect
+wandb_entity: avagr
+v: ???
+seed: 57
+device: cuda:0
+
+num_workers: 6
+pin_memory: true
+batch_size: 8
+
+mixed_precision: false
+use_tf32: false
+
+disable_wandb: false
+show_tqdm: true
+resume_wandb_id: null
+detect_anomalies: false
+log_samples: 50
+
+model_size: ???
