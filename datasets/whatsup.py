@@ -7,11 +7,12 @@ import wandb
 from PIL import Image
 from torch.utils.data import Dataset
 
+from datasets.base import BaseDataset
 from models.wrappers import GenerativeWrapper
 from utils.eval import EvaluationResult
 
 
-class WhatsUp(Dataset):
+class WhatsUp(BaseDataset):
     wandb_columns = ["image", "caption_options", "prediction"]
 
     def __init__(self, root_dir: Path, json_path: Path, permute_options: bool = False):
@@ -69,7 +70,6 @@ class WhatsUpEval:
     def __call__(self, batch, model: GenerativeWrapper) -> EvaluationResult:
         idx, images, options, answers = batch
         batch_size = idx.shape[0]
-        model.to(self.device)
         match self.eval_method:
             case "ppl":
                 texts = [f"{self.pre_prompt}{opt[i]}{self.post_prompt}" for opt in options for i in range(4)]

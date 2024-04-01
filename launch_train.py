@@ -11,16 +11,18 @@ from torch.utils.data import DataLoader
 
 from utils.eval import eval_model, merge_results, sample_results
 from utils.misc import set_random_seed, count_parameters
-from utils.setup import create_model, create_eval_task
+from utils.setup import create_model, create_train_task
 
 
-@hydra.main(config_path="configs", config_name="eval_config", version_base=None)
+@hydra.main(config_path="configs", config_name="train_config", version_base=None)
 def run(cfg: DictConfig):
     torch.autograd.set_detect_anomaly(cfg.detect_anomalies, check_nan=True)
     torch.backends.cuda.matmul.allow_tf32 = cfg.use_tf32
     torch.backends.cudnn.allow_tf32 = cfg.use_tf32
 
     set_random_seed(cfg.seed)
+
+    accelerator = Accelerator()
 
     if cfg.disable_wandb:
         os.environ["WANDB_MODE"] = "disabled"
@@ -39,7 +41,9 @@ def run(cfg: DictConfig):
                                     f"{choices['model']}_{choices['task']}_{cfg.task.eval_method}.yaml")
     cfg.prompt = OmegaConf.load(prompt_path)
 
-    dataset, wrapper, collate_fn = create_eval_task(cfg)
+    cfg.device = accelerator.device
+
+    dataset, wrapper, collate_fn = create_train_task(cfg)
     model = create_model(cfg)
 
     cfg.model_size = count_parameters(model)

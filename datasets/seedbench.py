@@ -5,13 +5,13 @@ from pathlib import Path
 import torch
 import wandb
 from PIL import Image
-from torch.utils.data import Dataset
 
+from datasets.base import BaseDataset
 from models.wrappers import GenerativeWrapper
 from utils.eval import EvaluationResult
 
 
-class SEEDBenchSingleImage(Dataset):
+class SEEDBenchSingleImage(BaseDataset):
     answer_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
     wandb_columns = ["image", "question", "choices", "prediction", "answer"]
 
@@ -105,7 +105,6 @@ class SEEDBenchSingleImageEval:
     def __call__(self, batch, model: GenerativeWrapper) -> EvaluationResult:
         idx, images, questions, choices, answers = batch
         batch_size = idx.shape[0]
-        model.to(self.device)
         match self.eval_method:
             case "ppl":
                 texts = [f"{self.pre_prompt}{q}{self.mid_prompt}{cand[c]}{self.post_prompt}" for q, cand in

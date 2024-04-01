@@ -3,6 +3,8 @@ import wandb
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 
+from datasets.base import BaseDataset
+
 
 @torch.inference_mode()
 def eval_model(model, eval_wrapper, dataloader, show_tqdm=False):
@@ -13,7 +15,7 @@ def eval_model(model, eval_wrapper, dataloader, show_tqdm=False):
     for batch in tqdm(dataloader, disable=not show_tqdm):
         res: EvaluationResult = eval_wrapper(batch, model)
         results.append(res)
-        total_matches += res.num_matches().item()
+        total_matches += res.num_matches()
         size += res.batch_size
     return total_matches / size, results
 
@@ -27,11 +29,17 @@ import torch
 class EvaluationResult:
     batch_size: int
     question_ids: torch.Tensor
-    predictions: torch.Tensor
-    labels: torch.Tensor
+    predictions: torch.Tensor | str
+    labels: torch.Tensor | str
 
     def num_matches(self):
-        return (self.predictions == self.labels).sum()
+        if isinstance(self.predictions, torch.Tensor):
+            return (self.predictions == self.labels).sum().item()
+        matches = 0
+        for pred, label in zip(self.predictions, self.labels):
+            if pred.strip().lower() == label.strip().lower():
+                matches += 1
+        return matches
 
 
 def merge_results(results):
@@ -51,7 +59,7 @@ def merge_results(results):
     )
 
 
-def sample_results(results: EvaluationResult, dataset, num_samples: int):
+def sample_results(results: EvaluationResult, dataset: BaseDataset, num_samples: int):
     matches = results.predictions == results.labels
     correct_ind = results.question_ids[matches][:num_samples].tolist()
     mistakes_ind = results.question_ids[~matches][:num_samples].tolist()
