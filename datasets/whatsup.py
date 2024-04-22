@@ -20,6 +20,8 @@ class WhatsUp(BaseDataset):
         self.permute_options = permute_options
         with open(json_path, 'r') as f:
             self.items = json.load(f)
+        if self.permute_options:
+            self.permutations = [torch.randperm(4) for _ in self.items]
 
     def __len__(self):
         return len(self.items)
@@ -30,12 +32,15 @@ class WhatsUp(BaseDataset):
         options = item['caption_options']
         answer = 0
         if self.permute_options:
-            permutation = torch.randperm(4)
+            permutation = self.permutations[idx]
             answer = permutation.argmin().item()
             options = [options[i] for i in permutation]
         return idx, image, options, answer
 
     def wandb_repr(self, idx, prediction):
+        if self.permute_options:
+            permutation = self.permutations[idx]
+            prediction = permutation[prediction].item()
         item = self.items[idx]
         return [
             wandb.Image(str((self.root_dir / item['image_path']).resolve())),

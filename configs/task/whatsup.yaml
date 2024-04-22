@@ -4,5 +4,5 @@ json_path_A: /home/projects/shimon/agroskin/datasets/whatsup/controlled_images_d
 json_path_B: /home/projects/shimon/agroskin/datasets/whatsup/controlled_clevr_dataset.json
 image_root: /home/projects/shimon/agroskin/datasets/whatsup
 eval_method: abcd
-permute: false
+permute: true
 display_name: "${task.name} ${task.part}"
