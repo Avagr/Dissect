@@ -1,15 +1,17 @@
 from pathlib import Path
 
 from torch.optim.lr_scheduler import LinearLR, CosineAnnealingWarmRestarts, ReduceLROnPlateau, SequentialLR
-from transformers import LlavaForConditionalGeneration, AutoProcessor
+from transformers import LlavaForConditionalGeneration, AutoProcessor, AutoModelForCausalLM, LlamaTokenizer
 
+from datasets.gqa import GQA, GQAEval, GQACollate
+from datasets.mmvp import MMVP, MMVPCollate, MMVPEval
 from datasets.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
 from datasets.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate
-from datasets.gqa import GQA, GQAEval, GQATrain, GQACollate
+from models.cogvlm import *
 from models.wrappers import *
 
 
-def create_model(cfg):
+def create_model(cfg, device):
     match cfg.model.dtype:
         case "bfloat16":
             dtype = torch.bfloat16
@@ -23,22 +25,36 @@ def create_model(cfg):
     match cfg.model.name:
         case "llava":
             llava = LlavaForConditionalGeneration.from_pretrained(cfg.model.path, torch_dtype=dtype,
-                                                                  attn_implementation=cfg.model.attn_impl
+                                                                  attn_implementation=cfg.model.attn_impl,
+                                                                  low_cpu_mem_usage=True,
                                                                   )
             processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
-            model = GenerativeWrapper(processor, llava, cfg.device, dtype)
+            model = GenerativeWrapper(processor, llava, device, dtype)
+
+        case "cogvlm":
+            cogvlm = AutoModelForCausalLM.from_pretrained(
+                cfg.model.path,
+                torch_dtype=dtype,
+                low_cpu_mem_usage=True,
+                trust_remote_code=True
+            )
+            tokenizer = LlamaTokenizer.from_pretrained(cfg.model.tokenizer_path)
+            processor = CogVLMProcessor(tokenizer, cogvlm.config)
+            # Horrible monkey-patching because the original implementation does not support image batching as tensor
+            cogvlm.model.encode_images = encode_images_replacement.__get__(cogvlm.model, cogvlm.model.__class__)
+            model = GenerativeWrapper(processor, cogvlm, device, dtype)
         case _:
             raise ValueError(f"Unsupported model '{cfg.model.name}'")
 
-    return model.to(cfg.device)
+    return model.to(device)
 
 
-def create_eval_task(cfg):
+def create_eval_task(cfg, device):
     sampling_config = GenerationConfig(**cfg.sampling_params)
     match cfg.task.name:
         case "SEED-Bench 2":
             dataset = SEEDBenchSingleImage(cfg.task.task_num, Path(cfg.task.json_path), Path(cfg.task.image_root))
-            wrapper = SEEDBenchSingleImageEval(cfg.prompt.text, cfg.device, cfg.task.eval_method)
+            wrapper = SEEDBenchSingleImageEval(cfg.prompt.text, device, cfg.task.eval_method)
             collate = SEEDBenchCollate()
 
         case "WhatsUp":
@@ -50,13 +66,18 @@ def create_eval_task(cfg):
                 raise ValueError(f"Unsupported What's Up part '{cfg.task.part}'")
 
             dataset = WhatsUp(Path(cfg.task.image_root), json_path, permute_options=cfg.task.permute)
-            wrapper = WhatsUpEval(cfg.prompt.text, cfg.device, cfg.task.eval_method)
+            wrapper = WhatsUpEval(cfg.prompt.text, device, cfg.task.eval_method)
             collate = WhatsUpCollate()
 
         case "GQA":
             dataset = GQA(Path(cfg.task.test_question_file), Path(cfg.task.img_dir))
-            wrapper = GQAEval(cfg.prompt.text, cfg.device, cfg.task.eval_method, sampling_config)
+            wrapper = GQAEval(cfg.prompt.text, device, cfg.task.eval_method, sampling_config)
             collate = GQACollate()
+
+        case "MMVP":
+            dataset = MMVP(Path(cfg.task.csv_path), Path(cfg.task.img_dir))
+            wrapper = MMVPEval(cfg.prompt.text, cfg.task.eval_method)
+            collate = MMVPCollate()
 
         case _:
             raise ValueError(f"Unsupported task '{cfg.task.name}'")

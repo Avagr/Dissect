@@ -8,11 +8,11 @@ class GenerativeWrapper(nn.Module):
     Wrapper for tasks that require generating text
     """
 
-    def __init__(self, processor: LlavaProcessor, model: GenerationMixin | PreTrainedModel,
+    def __init__(self, processor, model: GenerationMixin | PreTrainedModel,
                  device, dtype=torch.bfloat16, ):
         super().__init__()
         self.processor = processor
-        assert processor.tokenizer.padding_side == 'left'
+        processor.tokenizer.padding_side = 'left'
         self.model = model
         self.device = device
         self.dtype = dtype

@@ -4,7 +4,6 @@ from pathlib import Path
 import hydra
 import torch
 import wandb
-from accelerate import Accelerator
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
@@ -22,6 +21,8 @@ def run(cfg: DictConfig):
 
     set_random_seed(cfg.seed)
 
+    device = cfg.device  # TODO support accelerate
+
     if cfg.disable_wandb:
         os.environ["WANDB_MODE"] = "disabled"
         print(OmegaConf.to_yaml(cfg))
@@ -36,11 +37,13 @@ def run(cfg: DictConfig):
     choices = HydraConfig.get().runtime.choices
     root_dir = Path(__file__).parent.resolve()
     prompt_path = root_dir.joinpath(root_dir, "configs", "prompts",
-                                    f"{choices['model']}_{choices['task']}_{cfg.task.eval_method}.yaml")
+                                    f"{choices['model']}", f"{choices['task']}_{cfg.task.eval_method}.yaml")
     cfg.prompt = OmegaConf.load(prompt_path)
 
-    dataset, wrapper, collate_fn = create_eval_task(cfg)
-    model = create_model(cfg)
+    print("Prompt:\n" + cfg.prompt.text)
+
+    dataset, wrapper, collate_fn = create_eval_task(cfg, device)
+    model = create_model(cfg, device)
 
     cfg.model_size = count_parameters(model)
     wandb.init(id=run_id, resume="must" if cfg.resume_wandb_id is not None else "never",

@@ -1,6 +1,5 @@
 import torch
 import wandb
-from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 
 from datasets.base import BaseDataset
@@ -29,17 +28,29 @@ import torch
 class EvaluationResult:
     batch_size: int
     question_ids: torch.Tensor
-    predictions: torch.Tensor | str
-    labels: torch.Tensor | str
+    predictions: torch.Tensor | list[str] | list[tuple]
+    labels: torch.Tensor | list[str] | list[tuple]
+
+    def matches(self):
+        matches = []
+        if isinstance(self.predictions, torch.Tensor):
+            matches = (self.predictions == self.labels)
+        elif isinstance(self.predictions[0], str):
+            for pred, label in zip(self.predictions, self.labels):
+                if pred.strip().lower() == label.strip().lower():
+                    matches.append(1)
+                else:
+                    matches.append(0)
+        else:
+            for pred, label in zip(self.predictions, self.labels):
+                if pred == label:
+                    matches.append(1)
+                else:
+                    matches.append(0)
+        return matches
 
     def num_matches(self):
-        if isinstance(self.predictions, torch.Tensor):
-            return (self.predictions == self.labels).sum().item()
-        matches = 0
-        for pred, label in zip(self.predictions, self.labels):
-            if pred.strip().lower() == label.strip().lower():
-                matches += 1
-        return matches
+        return sum(self.matches())
 
 
 def merge_results(results):
@@ -47,23 +58,26 @@ def merge_results(results):
     predictions = []
     labels = []
     for res in results:
-        question_ids.append(res.question_ids)
-        predictions.append(res.predictions)
-        labels.append(res.labels)
+        question_ids.extend(res.question_ids)
+        predictions.extend(res.predictions)
+        labels.extend(res.labels)
 
+    if isinstance(predictions[0], torch.Tensor):
+        predictions = torch.cat(predictions)
+        labels = torch.cat(labels)
     return EvaluationResult(
         batch_size=sum(res.batch_size for res in results),
-        question_ids=torch.cat(question_ids),
-        predictions=torch.cat(predictions),
-        labels=torch.cat(labels),
+        question_ids=torch.tensor(question_ids),
+        predictions=predictions,
+        labels=labels,
     )
 
 
 def sample_results(results: EvaluationResult, dataset: BaseDataset, num_samples: int):
-    matches = results.predictions == results.labels
+    matches = torch.BoolTensor(results.matches())
     correct_ind = results.question_ids[matches][:num_samples].tolist()
     mistakes_ind = results.question_ids[~matches][:num_samples].tolist()
-    correct = [dataset.wandb_repr(i, results.predictions[i].item()) for i in correct_ind]
-    mistakes = [dataset.wandb_repr(i, results.predictions[i].item()) for i in mistakes_ind]
+    correct = [dataset.wandb_repr(i, results.predictions[i]) for i in correct_ind]
+    mistakes = [dataset.wandb_repr(i, results.predictions[i]) for i in mistakes_ind]
     headers = dataset.wandb_columns
     return wandb.Table(data=correct, columns=headers), wandb.Table(data=mistakes, columns=headers)

@@ -45,7 +45,7 @@ class WhatsUp(BaseDataset):
         return [
             wandb.Image(str((self.root_dir / item['image_path']).resolve())),
             "\n".join(item['caption_options']),
-            item['caption_options'][prediction]
+            item['caption_options'][prediction.item()]
         ]
 
 
@@ -78,6 +78,7 @@ class WhatsUpEval:
         match self.eval_method:
             case "ppl":
                 texts = [f"{self.pre_prompt}{opt[i]}{self.post_prompt}" for opt in options for i in range(4)]
+                print(texts)
                 images = [img for img in images for _ in range(4)]
                 scores = model.score_text(images, texts).view(batch_size, 4)
                 predictions = scores.argmin(-1).cpu()
